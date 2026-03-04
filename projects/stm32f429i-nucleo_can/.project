@@ -33,12 +33,12 @@
 		<link>
 			<name>CANopenNode</name>
 			<type>2</type>
-			<location>E:/CAN/CanOpenSTM32F429i-nucleo/CANopenNode</location>
+			<location>E:/CAN/CanOpenNode-STM32F429i-nucleo/CANopenNode</location>
 		</link>
 		<link>
 			<name>CANopenNode_drivers_STM32</name>
 			<type>2</type>
-			<location>E:/CAN/CanOpenSTM32F429i-nucleo/CANopenNode_drivers_STM32</location>
+			<location>E:/CAN/CanOpenNode-STM32F429i-nucleo/CANopenNode_drivers_STM32</location>
 		</link>
 	</linkedResources>
 	<variableList>

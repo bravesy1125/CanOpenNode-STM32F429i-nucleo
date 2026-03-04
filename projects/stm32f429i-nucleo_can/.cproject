@@ -57,7 +57,7 @@
 								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level.1908951908" name="Optimization level" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.cpp.compiler.option.optimization.level" useByScannerDiscovery="false"/>
 							</tool>
 							<tool id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.31870936" name="MCU GCC Linker" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker">
-								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.script.1261253151" name="Linker Script (-T)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.script" value="E:\CAN\CanOpenSTM32F429i-nucleo\projects\stm32f429i-nucleo_can\STM32F429ZITX_FLASH.ld" valueType="string"/>
+								<option id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.script.1261253151" name="Linker Script (-T)" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.option.script" value="${ProjDirPath}/STM32F429ZITX_FLASH.ld" valueType="string"/>
 								<inputType id="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.input.1145568540" superClass="com.st.stm32cube.ide.mcu.gnu.managedbuild.tool.c.linker.input">
 									<additionalInput kind="additionalinputdependency" paths="$(USER_OBJS)"/>
 									<additionalInput kind="additionalinput" paths="$(LIBS)"/>
@@ -76,7 +76,7 @@
 					</folderInfo>
 					<sourceEntries>
 						<entry excluding="example/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="CANopenNode"/>
-						<entry excluding="CO_storageBlank.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="CANopenNode_drivers_STM32"/>
+						<entry flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="CANopenNode_drivers_STM32"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="HAL"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Main"/>
 					</sourceEntries>
