@@ -45,7 +45,7 @@
   */
 
 
-#include "../../HAL/CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h"
+#include "../../STM32_HAL/CMSIS/Device/ST/STM32F4xx/Include/stm32f4xx.h"
 
 #if !defined  (HSE_VALUE) 
   #define HSE_VALUE    ((uint32_t)25000000) /*!< Default value of the External oscillator in Hz */

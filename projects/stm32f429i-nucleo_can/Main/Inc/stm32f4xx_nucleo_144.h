@@ -29,7 +29,7 @@
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "../../HAL/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h"
+#include "../../STM32_HAL/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h"
    
 /* To be defined only if the board is provided with the related shield */
 /* https://www.adafruit.com/products/802 */

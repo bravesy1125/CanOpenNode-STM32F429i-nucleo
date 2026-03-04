@@ -27,7 +27,7 @@ extern "C" {
 #endif
 
 /* Includes ------------------------------------------------------------------*/
-#include "../../HAL/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h"
+#include "../../STM32_HAL/STM32F4xx_HAL_Driver/Inc/stm32f4xx_hal.h"
 #include "../../Main/Inc/stm32f4xx_nucleo_144.h"
 
 /* Private includes ----------------------------------------------------------*/
