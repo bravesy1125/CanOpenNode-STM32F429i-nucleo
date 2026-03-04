@@ -102,7 +102,7 @@ int main(void)
 //  MX_I2C1_Init();
 //  MX_SPI1_Init();
   MX_TIM14_Init();
-  MX_CAN2_Init();
+  // MX_CAN2_Init();// CAN2 will be initialized very soon.
   /* USER CODE BEGIN 2 */
   CANopenNodeSTM32 canOpenNodeSTM32;
   canOpenNodeSTM32.CANHandle = &hcan2;
