@@ -20,6 +20,7 @@
 #include "main.h"
 
 #include "CO_app_STM32.h"
+#include "OD.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -65,7 +66,7 @@ static void MX_CAN2_Init(void);
 /* Timer interrupt function executes every 1 ms */
 void
 HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef* htim) {
-    if (htim == canopenNodeSTM32->timerHandle) {
+    if (canopenNodeSTM32 != NULL && htim == canopenNodeSTM32->timerHandle) {
         canopen_app_interrupt();
     }
 }
@@ -105,11 +106,12 @@ int main(void)
   // MX_CAN2_Init();// CAN2 will be initialized very soon.
   /* USER CODE BEGIN 2 */
   CANopenNodeSTM32 canOpenNodeSTM32;
+  uint32_t testVarUpdateLastMs = 0;
   canOpenNodeSTM32.CANHandle = &hcan2;
   canOpenNodeSTM32.HWInitFunction = MX_CAN2_Init;
   canOpenNodeSTM32.timerHandle = &htim14;
-  canOpenNodeSTM32.desiredNodeID = 1;
-  canOpenNodeSTM32.baudrate = 125;
+  canOpenNodeSTM32.desiredNodeID = 6;
+  canOpenNodeSTM32.baudrate = 1000;
   
   canopen_app_init(&canOpenNodeSTM32);
   /* USER CODE END 2 */
@@ -125,6 +127,14 @@ int main(void)
 		//   blueLedLastToggleMs = HAL_GetTick();
 		//   HAL_GPIO_TogglePin(LED_BLUE_PORT, LED_BLUE);
 	  // }
+
+      if ((HAL_GetTick() - testVarUpdateLastMs) >= 1000U) {
+          testVarUpdateLastMs = HAL_GetTick();
+          CO_LOCK_OD(canOpenNodeSTM32.canOpenStack->CANmodule);
+          OD_RAM.x2000_testvar1_uint32++;
+          OD_RAM.x2001_testvar2_uint16++;
+          CO_UNLOCK_OD(canOpenNodeSTM32.canOpenStack->CANmodule);
+      }
 
 	  canopen_app_process();
     /* USER CODE END WHILE */
@@ -195,16 +205,16 @@ static void MX_CAN2_Init(void)
 
   /* USER CODE END CAN2_Init 1 */
   hcan2.Instance = CAN2;
-  hcan2.Init.Prescaler = 21;
+  hcan2.Init.Prescaler = 3;
   hcan2.Init.Mode = CAN_MODE_NORMAL;
-  hcan2.Init.SyncJumpWidth = CAN_SJW_2TQ;
-  hcan2.Init.TimeSeg1 = CAN_BS1_13TQ;
+  hcan2.Init.SyncJumpWidth = CAN_SJW_1TQ;
+  hcan2.Init.TimeSeg1 = CAN_BS1_11TQ;
   hcan2.Init.TimeSeg2 = CAN_BS2_2TQ;
   hcan2.Init.TimeTriggeredMode = DISABLE;
   hcan2.Init.AutoBusOff = ENABLE;
   hcan2.Init.AutoWakeUp = DISABLE;
-  hcan2.Init.AutoRetransmission = DISABLE;
-  hcan2.Init.ReceiveFifoLocked = ENABLE;
+  hcan2.Init.AutoRetransmission = ENABLE;
+  hcan2.Init.ReceiveFifoLocked = DISABLE;
   hcan2.Init.TransmitFifoPriority = ENABLE;
   if (HAL_CAN_Init(&hcan2) != HAL_OK)
   {

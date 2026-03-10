@@ -77,7 +77,7 @@
 					<sourceEntries>
 						<entry excluding="storage|example/" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="CANopenNode"/>
 						<entry excluding="CO_storageBlank.c" flags="VALUE_WORKSPACE_PATH" kind="sourcePath" name="CANopenNode_drivers_STM32"/>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Main"/>
+						<entry excluding="Src/sysmem.c|Src/syscalls.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Main"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="STM32_HAL"/>
 					</sourceEntries>
 				</configuration>
@@ -152,7 +152,7 @@
 						</toolChain>
 					</folderInfo>
 					<sourceEntries>
-						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Main"/>
+						<entry excluding="Src/sysmem.c|Src/syscalls.c" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="Main"/>
 						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name="STM32_HAL"/>
 					</sourceEntries>
 				</configuration>

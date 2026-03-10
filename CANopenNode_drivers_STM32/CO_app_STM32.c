@@ -30,6 +30,7 @@
 #include <inttypes.h>
 
 #include "CO_storageBlank.h"
+#include "domains.h"
 #include "OD.h"
 
 CANopenNodeSTM32*
@@ -94,6 +95,7 @@ canopen_app_init(CANopenNodeSTM32* _canopenNodeSTM32) {
     }
 
     canopenNodeSTM32->canOpenStack = CO;
+    domains_init();
 
 #if (CO_CONFIG_STORAGE) & CO_CONFIG_STORAGE_ENABLE
     err = CO_storageBlank_init(&storage, CO->CANmodule, OD_ENTRY_H1010_storeParameters,
