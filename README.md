@@ -7,21 +7,23 @@ CANopenSTM32 is a CANopen stack running on STM32 microcontroller based on [CANOp
 Examples are developed in [STM32CubeIDE](https://www.st.com/en/development-tools/stm32cubeide.html) tool,
 official ST development studio for any STM32 microcontroller.
 You can directly open projects in the STM32CubeIDE and run examples on the relevant boards.
+V1.15.1 is used in this project.
 
 ## Repository directories
 
-- `./CANopenNode` : Includes the stack implementation, for most of use cases you don't need to touch these files as they are constant between all the variations and ports (i.e. Linux, PIC, STM32 and etc.)
-- `./CANopenNode_drivers_STM32` : Includes the implementation of low-level driver for STM32 microcontrollers, supports CAN-based controllers and FDCAN without major changes.
-- `./projects/stm32f429i-nucleo_can` : Active example project for STM32F429I Nucleo board.
-- `./Legacy` : Includes an older version of CANOpenSTM32 implementation, specifically made for FDCAN controllers.
+- `./CANopenNode` : Upstream CANopenNode stack sources.
+- `./CANopenNode_drivers_STM32` : STM32-specific integration layer, object dictionary files and board-facing glue code.
+- `./Main` : Application sources, interrupt handlers and STM32 project headers for the current STM32F429I-Nucleo target.
+- `./STM32_HAL` : STM32 HAL and CMSIS sources used by this project.
+- `./canopen-python-test` : Python-side test and tooling scripts for CANopen interaction.
+- `./Debug` : STM32CubeIDE build output directory generated for the Debug configuration.
 
 ## Supported boards and MCUs
 
-### STM32F429I-Nucleo (current target)
+### STM32F429I-Nucleo (current target) + SN65HVD230 bxCAN transceiver(TJA1050/TJA1051 does also work.)
 
 The current maintained project in this repository targets STM32F429I Nucleo with classic bxCAN.
 
-- Runs on `projects/stm32f429i-nucleo_can`
 - Uses bxCAN peripheral
 - Uses `TIM14` as 1 ms CANopen real-time tick
 - Main loop calls `canopen_app_process()`
@@ -56,18 +58,9 @@ To get a good grasp of CANOpenNode Stack and CANOpenNodeSTM32 stack, you can ref
 ```c
 void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
 {
-  /* USER CODE BEGIN Callback 0 */
-
-  /* USER CODE END Callback 0 */
-  if (htim->Instance == TIM1) {
-    HAL_IncTick();
-  }
-  /* USER CODE BEGIN Callback 1 */
-  // Handle CANOpen app interrupts
-  if (htim == canopenNodeSTM32->timerHandle) {
-      canopen_app_interrupt();
-  }
-  /* USER CODE END Callback 1 */
+    if (canopenNodeSTM32 != NULL && htim == canopenNodeSTM32->timerHandle) {
+        canopen_app_interrupt();
+    }
 }
 
 ```
@@ -83,7 +76,7 @@ void HAL_TIM_PeriodElapsedCallback(TIM_HandleTypeDef *htim)
     canOpenNodeSTM32.HWInitFunction = MX_CAN1_Init;
     canOpenNodeSTM32.timerHandle = &htim14;
     canOpenNodeSTM32.desiredNodeID = 1;
-    canOpenNodeSTM32.baudrate = 125;
+    canOpenNodeSTM32.baudrate = 1000;
     canopen_app_init(&canOpenNodeSTM32);
     /* USER CODE END 2 */
   ```
@@ -115,14 +108,14 @@ Clone the project from git repository and get submodules:
 
 ```bash
 git clone https://github.com/CANopenNode/CANopenSTM32
-cd CANopenSTM32
+cd CanOpenNode-STM32F429i-nucleo
 git submodule update --init --recursive
 ```
 
 Update an existing project including submodules:
 
 ```bash
-cd CANopenSTM32
+cd CanOpenNode-STM32F429i-nucleo
 git pull
 git submodule update --init --recursive
 ```
