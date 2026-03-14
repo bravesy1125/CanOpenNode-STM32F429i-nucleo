@@ -16,7 +16,48 @@ V1.15.1 is used in this project.
 - `./Main` : Application sources, interrupt handlers and STM32 project headers for the current STM32F429I-Nucleo target.
 - `./STM32_HAL` : STM32 HAL and CMSIS sources used by this project.
 - `./canopen-python-test` : Python-side test and tooling scripts for CANopen interaction.
+- `./webui` : Vue 3 + FastAPI + WebSocket based desktop-style web UI for monitoring and configuring CANopen nodes.
 - `./Debug` : STM32CubeIDE build output directory generated for the Debug configuration.
+
+## WebUI
+
+This repository also includes a browser-based monitoring and configuration interface for the STM32F429I CANopenNode setup.
+
+![STM32F429I CANopenNode WebUI](webui/frontend/public/hero-logo.png)
+
+The WebUI is built with:
+
+- `Vue 3` + `Vite` for the frontend
+- `FastAPI` for the backend
+- `WebSocket` for live updates
+- `python-canopen` for CANopen access on the PC side
+
+Current WebUI capabilities:
+
+- Manual bus connect/disconnect on `COM6`
+- Automatic node discovery from `heartbeat` / `bootup`
+- Per-node configuration for `HB`, `SYNC`, `TPDO1`, `SDO`, and `Domain`
+- Live monitor charts with multi-node and multi-variable selection
+- Python-side log output in the browser
+
+Quick start:
+
+```bash
+cd webui/frontend
+npm install
+npm run build
+
+cd ../backend
+python -m uvicorn app.main:app --host 127.0.0.1 --port 80
+```
+
+Open:
+
+```text
+http://127.0.0.1:80
+```
+
+For more detail, see [webui/README.md](webui/README.md).
 
 ## Supported boards and MCUs
 

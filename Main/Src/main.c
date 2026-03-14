@@ -110,7 +110,7 @@ int main(void)
   canOpenNodeSTM32.CANHandle = &hcan2;
   canOpenNodeSTM32.HWInitFunction = MX_CAN2_Init;
   canOpenNodeSTM32.timerHandle = &htim14;
-  canOpenNodeSTM32.desiredNodeID = 6;
+  canOpenNodeSTM32.desiredNodeID = 7;
   canOpenNodeSTM32.baudrate = 1000;
   
   canopen_app_init(&canOpenNodeSTM32);
