@@ -1413,24 +1413,24 @@ onBeforeUnmount(() => {
     </section>
 
     <Transition :name="tabTransitionName" mode="out-in">
-      <section v-if="activeTab === 'overview'" key="overview" class="overview-grid">
-        <article class="overview-card">
-          <h2>Bus Status</h2>
-          <dl class="overview-metrics">
-            <div>
-              <dt>Connection</dt>
-              <dd>{{ connection.connected ? "Connected" : "Disconnected" }}</dd>
-            </div>
-            <div>
-              <dt>Nodes</dt>
-              <dd>{{ nodes.length }}</dd>
-            </div>
-            <div>
-              <dt>Active SYNC Producer</dt>
-              <dd>{{ activeSyncProducerLabel }}</dd>
-            </div>
-          </dl>
-        </article>
+        <section v-if="activeTab === 'overview'" key="overview" class="overview-grid">
+          <article class="overview-card">
+            <h2>Bus Status</h2>
+            <dl class="overview-metrics overview-metrics-carded">
+              <div class="overview-metric-card overview-metric-connection">
+                <dt>Connection</dt>
+                <dd>{{ connection.connected ? "Connected" : "Disconnected" }}</dd>
+              </div>
+              <div class="overview-metric-card overview-metric-nodes">
+                <dt>Nodes</dt>
+                <dd>{{ nodes.length }}</dd>
+              </div>
+              <div class="overview-metric-card overview-metric-sync">
+                <dt>Active SYNC Producer</dt>
+                <dd>{{ activeSyncProducerLabel }}</dd>
+              </div>
+            </dl>
+          </article>
 
         <article class="overview-card">
           <div class="overview-head">
@@ -1448,21 +1448,21 @@ onBeforeUnmount(() => {
               <button type="button" class="secondary small-button" @click="handleAddNode">Add Node</button>
             </div>
           </div>
-          <div class="summary-list">
-            <p v-if="nodes.length === 0" class="muted">No live nodes.</p>
-            <div v-for="node in nodes" :key="`summary-${node.node_id}`" class="summary-item">
-              <strong>Node {{ node.node_id }}</strong>
-              <span :class="['pill', node.connected ? 'ok' : 'bad']">
-                {{ node.connected ? node.nmt_state : "OFFLINE" }}
-              </span>
-              <button type="button" class="value-link" @click="openMetricChart(node.node_id, 'testvar1')">
-                <code class="summary-code">0x2000={{ formatValue(node.testvar1_uint32) }}</code>
-              </button>
-              <button type="button" class="value-link" @click="openMetricChart(node.node_id, 'testvar2')">
-                <code class="summary-code">0x2001={{ formatValue(node.testvar2_uint16) }}</code>
-              </button>
+            <div class="summary-list">
+              <p v-if="nodes.length === 0" class="muted">No live nodes.</p>
+              <div v-for="node in nodes" :key="`summary-${node.node_id}`" class="summary-item">
+                <strong class="summary-node-label">Node {{ node.node_id }}</strong>
+                <span :class="['pill', node.connected ? 'ok' : 'bad']">
+                  {{ node.connected ? node.nmt_state : "OFFLINE" }}
+                </span>
+                <button type="button" class="value-link" @click="openMetricChart(node.node_id, 'testvar1')">
+                 <code class="summary-code summary-code-testvar1">0x2000={{ formatValue(node.testvar1_uint32) }}</code>
+                </button>
+                <button type="button" class="value-link" @click="openMetricChart(node.node_id, 'testvar2')">
+                 <code class="summary-code summary-code-testvar2">0x2001={{ formatValue(node.testvar2_uint16) }}</code>
+                </button>
+              </div>
             </div>
-          </div>
         </article>
       </section>
 
@@ -1830,14 +1830,14 @@ onBeforeUnmount(() => {
                 }}
               </p>
             </div>
-            <div class="chart-header-actions">
-              <div class="chart-toolbar chart-toolbar-right">
-                <button type="button" class="ghost-button monitor-reset-button" @click="resetChartHistory">Reset</button>
-                <button type="button" class="ghost-button monitor-pause-button" @click="toggleChartPaused">
-                  {{ chartPaused ? "Resume" : "Pause" }}
-                </button>
-              </div>
-              <div class="monitor-section">
+              <div class="chart-header-actions">
+                <div class="chart-toolbar chart-toolbar-right">
+                  <button type="button" class="ghost-button monitor-reset-button" @click="resetChartHistory">Reset</button>
+                  <button type="button" class="ghost-button monitor-pause-button" @click="toggleChartPaused">
+                    {{ chartPaused ? "Resume" : "Pause" }}
+                  </button>
+                </div>
+              <div class="monitor-section monitor-section-selection">
                 <div class="monitor-section-head">
                   <span class="monitor-section-label">Nodes Selection</span>
                 </div>
@@ -1859,7 +1859,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div class="monitor-divider"></div>
-              <div class="monitor-section">
+              <div class="monitor-section monitor-section-nodes">
                 <div class="monitor-section-head">
                   <span class="monitor-section-label">Nodes</span>
                 </div>
@@ -1884,7 +1884,7 @@ onBeforeUnmount(() => {
                 </div>
               </div>
               <div class="monitor-divider"></div>
-              <div class="monitor-section">
+              <div class="monitor-section monitor-section-variables">
                 <div class="monitor-section-head">
                   <span class="monitor-section-label">Variables</span>
                 </div>
@@ -1975,14 +1975,18 @@ onBeforeUnmount(() => {
       </div>
       <div ref="logListHost" class="log-list">
         <p v-if="pythonLogs.length === 0" class="muted">No Python output yet.</p>
-        <div
-          v-for="entry in pythonLogs"
-          :key="`${entry.timestamp}-${entry.source}-${entry.message}`"
-          class="log-item"
-        >
-          <span class="log-time">{{ entry.timestamp }}</span>
-          <span class="log-source">{{ entry.source }}</span>
-          <span :class="['log-level', entry.level.toLowerCase()]">{{ entry.level }}</span>
+          <div
+            v-for="entry in pythonLogs"
+            :key="`${entry.timestamp}-${entry.source}-${entry.message}`"
+            :class="[
+              'log-item',
+              `log-item-source-${entry.source.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}`,
+              `log-item-level-${entry.level.toLowerCase()}`,
+            ]"
+          >
+            <span class="log-time">{{ entry.timestamp }}</span>
+            <span class="log-source">{{ entry.source }}</span>
+            <span :class="['log-level', entry.level.toLowerCase()]">{{ entry.level }}</span>
           <span class="log-message">{{ entry.message }}</span>
         </div>
       </div>
