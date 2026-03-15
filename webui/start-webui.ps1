@@ -1,6 +1,6 @@
 param(
     [switch]$Mock = $false,
-    [string]$BindHost = "127.0.0.1",
+    [string]$BindHost = "0.0.0.0",
     [int]$Port = 80
 )
 

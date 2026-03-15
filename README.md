@@ -34,7 +34,9 @@ The WebUI is built with:
 
 Current WebUI capabilities:
 
-- Manual bus connect/disconnect on `COM6`
+- Manual bus connect/disconnect with selectable CAN device
+- `slcan` serial adapter listing from Windows `COM` ports with USB descriptor metadata when available
+- Native `python-can` device discovery for supported backends such as `pcan`, `vector`, `kvaser`, `ixxat`, `nixnet`, `neovi`, `systec`, and `usb2can`
 - Automatic node discovery from `heartbeat` / `bootup`
 - Per-node configuration for `HB`, `SYNC`, `TPDO1`, `SDO`, and `Domain`
 - Live monitor charts with multi-node and multi-variable selection
@@ -48,13 +50,19 @@ npm install
 npm run build
 
 cd ../backend
-python -m uvicorn app.main:app --host 127.0.0.1 --port 80
+python -m uvicorn app.main:app --host 0.0.0.0 --port 80
 ```
 
 Open:
 
 ```text
 http://127.0.0.1:80
+```
+
+From another device on the same LAN, open:
+
+```text
+http://<your-lan-ip>:80
 ```
 
 For more detail, see [webui/README.md](webui/README.md).

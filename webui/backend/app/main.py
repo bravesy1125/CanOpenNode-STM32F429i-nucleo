@@ -10,9 +10,11 @@ from fastapi.staticfiles import StaticFiles
 from .canopen_service import service
 from .config import settings
 from .models import (
+    ConnectionDeviceRequest,
     NodeAddRequest,
     NodeDomainRequest,
     NodeHeartbeatWriteRequest,
+    NodeNmtWriteRequest,
     NodeSdoWriteRequest,
     NodeSyncWriteRequest,
     NodeTpdoWriteRequest,
@@ -49,6 +51,20 @@ async def health() -> dict:
 @app.get("/api/connection")
 async def connection_status() -> dict:
     return service.connection_status().model_dump()
+
+
+@app.get("/api/connection/devices")
+async def list_can_devices() -> list[dict]:
+    return [device.model_dump() for device in await service.list_can_devices()]
+
+
+@app.post("/api/connection/device")
+async def update_connection_device(payload: ConnectionDeviceRequest) -> dict:
+    try:
+        result = await service.set_device(payload.bustype, payload.channel)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return result.model_dump()
 
 
 @app.post("/api/connection/connect")
@@ -137,6 +153,26 @@ async def read_heartbeat_config(node_id: int) -> dict:
 async def write_heartbeat_config(node_id: int, payload: NodeHeartbeatWriteRequest) -> dict:
     try:
         result = await service.write_heartbeat_config(node_id, payload.producer_time_ms)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return result.model_dump()
+
+
+@app.get("/api/nodes/{node_id}/nmt")
+async def read_nmt_config(node_id: int) -> dict:
+    try:
+        result = await service.read_nmt_config(node_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return result.model_dump()
+
+
+@app.post("/api/nodes/{node_id}/nmt")
+async def write_nmt_config(node_id: int, payload: NodeNmtWriteRequest) -> dict:
+    try:
+        result = await service.write_nmt_config(node_id, payload.state)
     except RuntimeError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     return result.model_dump()
@@ -205,10 +241,13 @@ async def read_domain(node_id: int, index: int = Query(...), subindex: int = Que
     try:
         result = await service.read_domain(node_id=node_id, index=index, subindex=subindex)
     except KeyError as exc:
+        service.append_log("ERROR", "webui", f"Domain read failed node={node_id} index=0x{index:04X}:{subindex} detail={exc}")
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
+        service.append_log("ERROR", "python-canopen", f"Domain read failed node={node_id} index=0x{index:04X}:{subindex} detail={exc}")
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
+        service.append_log("ERROR", "python-canopen", f"Domain read failed node={node_id} index=0x{index:04X}:{subindex} detail={exc}")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result.model_dump()
 
@@ -223,10 +262,26 @@ async def write_domain(node_id: int, payload: NodeDomainRequest) -> dict:
             payload=bytes.fromhex(payload.hex_data),
         )
     except KeyError as exc:
+        service.append_log(
+            "ERROR",
+            "webui",
+            f"Domain write failed node={node_id} index=0x{payload.index:04X}:{payload.subindex} detail={exc}",
+        )
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except RuntimeError as exc:
+        service.append_log(
+            "ERROR",
+            "python-canopen",
+            f"Domain write failed node={node_id} index=0x{payload.index:04X}:{payload.subindex} detail={exc}",
+        )
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except ValueError as exc:
+        service.append_log(
+            "ERROR",
+            "python-canopen",
+            f"Domain write failed node={node_id} index=0x{payload.index:04X}:{payload.subindex} "
+            f"hex_length={len(payload.hex_data)} detail={exc}",
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return result.model_dump()
 

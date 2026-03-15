@@ -8,7 +8,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="CANOPEN_")
 
     app_name: str = "CANopen WebUI"
-    host: str = "127.0.0.1"
+    host: str = "0.0.0.0"
     port: int = 80
     bustype: str = "slcan"
     channel: str = "COM6"

@@ -8,16 +8,20 @@ import {
   connectNodesSocket,
   disconnectBus,
   fetchConnection,
+  fetchCanDevices,
   fetchHeartbeatConfig,
   fetchLogs,
+  fetchNmtConfig,
   fetchNodes,
   fetchSyncConfig,
   fetchTpdo1Config,
   readDomain,
   refreshNodeValues,
   removeNode,
+  updateConnectionDevice,
   writeDomain,
   writeHeartbeatConfig,
+  writeNmtConfig,
   writeSdo,
   writeSyncConfig,
   writeTpdo1Config,
@@ -26,15 +30,19 @@ import {
 const nodes = ref([]);
 const logs = ref([]);
 const connection = ref({ connected: false, channel: "COM6", bustype: "slcan", bitrate: 1000000 });
+const canDevices = ref([]);
+const selectedDeviceKey = ref("slcan|COM6");
 const writeState = reactive({});
 const domainState = reactive({});
 const heartbeatState = reactive({});
+const nmtState = reactive({});
 const syncState = reactive({});
 const tpdoState = reactive({});
 const nodeUiState = reactive({});
 const chartHistory = reactive({});
 const status = ref("Connecting...");
 const activeTab = ref("overview");
+const tabTransitionName = ref("tab-slide-left");
 const addNodeId = ref("");
 const chartNodeId = ref(null);
 const selectedMonitorNodeIds = ref([]);
@@ -44,6 +52,7 @@ const chartPaused = ref(false);
 const chartHostPrimary = ref(null);
 const chartHostSecondary = ref(null);
 const quickChartHost = ref(null);
+const logListHost = ref(null);
 const quickChartMetric = ref("testvar1");
 const chartZoomState = reactive({
   primary: { yStart: 0, yEnd: 100 },
@@ -53,18 +62,67 @@ const chartZoomState = reactive({
 const loadingSyncNodes = new Set();
 const loadingTpdoNodes = new Set();
 const loadingHeartbeatNodes = new Set();
+const loadingNmtNodes = new Set();
 const loadedSyncNodes = new Set();
 const loadedTpdoNodes = new Set();
 const loadedHeartbeatNodes = new Set();
+const loadedNmtNodes = new Set();
 let socket;
 let chartInstancePrimary;
 let chartInstanceSecondary;
 let quickChartInstance;
 let chartRenderToken = 0;
+const TAB_ORDER = ["overview", "nodes", "monitor"];
+const activeTabIndex = computed(() => Math.max(0, TAB_ORDER.indexOf(activeTab.value)));
+
+function applyInitialViewState() {
+  const params = new URLSearchParams(window.location.search);
+  const tab = params.get("tab");
+  if (tab === "overview" || tab === "nodes" || tab === "monitor") {
+    activeTab.value = tab;
+  }
+
+  const selectedNodes = params
+    .get("nodes")
+    ?.split(",")
+    .map((value) => Number(value.trim()))
+    .filter((value) => Number.isInteger(value) && value >= 1 && value <= 127);
+  if (selectedNodes?.length) {
+    selectedMonitorNodeIds.value = [...new Set(selectedNodes)].sort((a, b) => a - b);
+  }
+
+  const selectedMetrics = params
+    .get("metrics")
+    ?.split(",")
+    .map((value) => value.trim())
+    .filter((value) => value === "testvar1" || value === "testvar2");
+  if (selectedMetrics?.length) {
+    selectedMonitorMetrics.value = [...new Set(selectedMetrics)];
+  }
+}
+
+function setActiveTab(tab) {
+  if (tab === activeTab.value) {
+    return;
+  }
+  const currentIndex = TAB_ORDER.indexOf(activeTab.value);
+  const nextIndex = TAB_ORDER.indexOf(tab);
+  tabTransitionName.value = nextIndex > currentIndex ? "tab-slide-left" : "tab-slide-right";
+  activeTab.value = tab;
+}
 
 const pythonLogs = computed(() =>
   logs.value.filter((entry) => entry.source.includes("python") || entry.source === "webui"),
 );
+
+async function scrollLogsToBottom() {
+  await nextTick();
+  const host = logListHost.value;
+  if (!host) {
+    return;
+  }
+  host.scrollTop = host.scrollHeight;
+}
 const activeSyncProducerId = computed(() => {
   for (const node of nodes.value) {
     if (syncState[node.node_id]?.enabled) {
@@ -76,6 +134,17 @@ const activeSyncProducerId = computed(() => {
 const activeSyncProducerLabel = computed(() =>
   activeSyncProducerId.value === null ? "-" : `node${activeSyncProducerId.value}`,
 );
+const groupedCanDevices = computed(() => {
+  const groups = new Map();
+  for (const device of canDevices.value) {
+    const category = device.category || "Other";
+    if (!groups.has(category)) {
+      groups.set(category, []);
+    }
+    groups.get(category).push(device);
+  }
+  return Array.from(groups.entries()).map(([label, items]) => ({ label, items }));
+});
 const selectedChartNode = computed(() => {
   if (chartNodeId.value !== null) {
     return nodes.value.find((node) => node.node_id === chartNodeId.value) ?? null;
@@ -391,7 +460,7 @@ function renderQuickChart() {
   }
 
   const metric = quickChartMetric.value;
-  const label = metric === "testvar1" ? "0x2000 testvar1_uint32" : "0x2001 testvar2_uint16";
+  const label = metric === "testvar1" ? "0x2000 testvar1 uint32" : "0x2001 testvar2 uint16";
   const color = metric === "testvar1" ? "#0e6a73" : "#bf5b2c";
   const series = (chartHistory[selectedChartNode.value.node_id]?.[metric] ?? []).map((point) => [point.timestamp, point.value]);
 
@@ -624,7 +693,7 @@ function renderChart() {
         },
       ],
       title: {
-        text: focusedMode ? `node${chartNodes[0].node_id} · 0x2000 testvar1_uint32` : `Selected Nodes · 0x2000 testvar1_uint32`,
+        text: focusedMode ? `node${chartNodes[0].node_id} · 0x2000 testvar1 uint32` : `Selected Nodes · 0x2000 testvar1 uint32`,
         left: 10,
         top: 8,
         textStyle: { fontSize: 14, color: "#23170f" },
@@ -661,7 +730,7 @@ function renderChart() {
         },
       ],
       title: {
-        text: focusedMode ? `node${chartNodes[0].node_id} · 0x2001 testvar2_uint16` : `Selected Nodes · 0x2001 testvar2_uint16`,
+        text: focusedMode ? `node${chartNodes[0].node_id} · 0x2001 testvar2 uint16` : `Selected Nodes · 0x2001 testvar2 uint16`,
         left: 10,
         top: 8,
         textStyle: { fontSize: 14, color: "#23170f" },
@@ -707,8 +776,8 @@ function syncNodeForms(items) {
     }
     if (!(node.node_id in domainState)) {
       domainState[node.node_id] = {
-        index: "",
-        subindex: "",
+        index: "0x2004",
+        subindex: "0",
         hexData: "",
         length: 0,
       };
@@ -717,6 +786,14 @@ function syncNodeForms(items) {
       heartbeatState[node.node_id] = {
         producerTimeMs: "",
       };
+    }
+    if (!(node.node_id in nmtState)) {
+      nmtState[node.node_id] = {
+        currentState: node.nmt_state || "",
+        targetState: "OPERATIONAL",
+      };
+    } else {
+      nmtState[node.node_id].currentState = node.nmt_state || nmtState[node.node_id].currentState;
     }
     if (!(node.node_id in syncState)) {
       syncState[node.node_id] = {
@@ -740,6 +817,7 @@ function syncNodeForms(items) {
         expanded: true,
         pane: "sync",
         sections: {
+          nmt: true,
           sync: true,
           tpdo: true,
           sdo: true,
@@ -761,13 +839,21 @@ function applySyncConfig(config) {
   syncState[config.node_id] = {
     enabled: config.enabled,
     cobId: `0x${config.cob_id.toString(16)}`,
-    periodUs: formatNumericInput(config.period_us),
+    periodUs: String(config.period_us),
   };
 }
 
 function applyHeartbeatConfig(config) {
   heartbeatState[config.node_id] = {
-    producerTimeMs: formatNumericInput(config.producer_time_ms),
+    producerTimeMs: String(config.producer_time_ms),
+  };
+}
+
+function applyNmtConfig(config) {
+  const existingTarget = nmtState[config.node_id]?.targetState;
+  nmtState[config.node_id] = {
+    currentState: config.state,
+    targetState: existingTarget || config.state || "OPERATIONAL",
   };
 }
 
@@ -846,6 +932,26 @@ async function ensureHeartbeatConfigs(nodeIds) {
   );
 }
 
+async function ensureNmtConfigs(nodeIds) {
+  const pending = nodeIds.filter((nodeId) => !loadingNmtNodes.has(nodeId) && !loadedNmtNodes.has(nodeId));
+  if (pending.length === 0 || !connection.value.connected) {
+    return;
+  }
+  await Promise.all(
+    pending.map(async (nodeId) => {
+      loadingNmtNodes.add(nodeId);
+      try {
+        applyNmtConfig(await fetchNmtConfig(nodeId));
+        loadedNmtNodes.add(nodeId);
+      } catch (error) {
+        status.value = `NMT read failed: ${error.message}`;
+      } finally {
+        loadingNmtNodes.delete(nodeId);
+      }
+    }),
+  );
+}
+
 async function ensureTpdoConfigs(nodeIds) {
   const pending = nodeIds.filter((nodeId) => !loadingTpdoNodes.has(nodeId) && !loadedTpdoNodes.has(nodeId));
   if (pending.length === 0 || !connection.value.connected) {
@@ -868,14 +974,43 @@ async function ensureTpdoConfigs(nodeIds) {
 
 async function refreshConfigs(items) {
   const nodeIds = items.filter((node) => node.connected).map((node) => node.node_id);
-  await Promise.all([ensureHeartbeatConfigs(nodeIds), ensureSyncConfigs(nodeIds), ensureTpdoConfigs(nodeIds)]);
+  await Promise.all([
+    ensureHeartbeatConfigs(nodeIds),
+    ensureNmtConfigs(nodeIds),
+    ensureSyncConfigs(nodeIds),
+    ensureTpdoConfigs(nodeIds),
+  ]);
+}
+
+function makeDeviceKey(bustype, channel) {
+  return `${bustype}|${channel}`;
+}
+
+async function loadCanDeviceOptions() {
+  try {
+    const devices = await fetchCanDevices();
+    canDevices.value = devices;
+    const currentKey = makeDeviceKey(connection.value.bustype, connection.value.channel);
+    if (!devices.some((device) => makeDeviceKey(device.bustype, device.channel) === selectedDeviceKey.value)) {
+      selectedDeviceKey.value = currentKey;
+    }
+  } catch (error) {
+    status.value = `CAN device list failed: ${error.message}`;
+  }
 }
 
 async function loadInitial() {
-  const [items, logItems, connectionInfo] = await Promise.all([fetchNodes(), fetchLogs(), fetchConnection()]);
+  const [items, logItems, connectionInfo, devices] = await Promise.all([
+    fetchNodes(),
+    fetchLogs(),
+    fetchConnection(),
+    fetchCanDevices(),
+  ]);
   nodes.value = items;
   logs.value = logItems;
   connection.value = connectionInfo;
+  canDevices.value = devices;
+  selectedDeviceKey.value = makeDeviceKey(connectionInfo.bustype, connectionInfo.channel);
   reconcileMonitorSelection(items);
   syncNodeForms(items);
   updateNodeHistory(items);
@@ -883,10 +1018,32 @@ async function loadInitial() {
   status.value = "REST connected";
 }
 
+async function handleDeviceChange() {
+  try {
+    const selected = canDevices.value.find((device) => makeDeviceKey(device.bustype, device.channel) === selectedDeviceKey.value);
+    if (!selected) {
+      throw new Error("Selected CAN device is unavailable");
+    }
+    if (!selected.supported) {
+      throw new Error("Selected device is visible in Windows but not supported by the current CAN backend");
+    }
+    connection.value = await updateConnectionDevice({
+      bustype: selected.bustype,
+      channel: selected.channel,
+    });
+    await loadCanDeviceOptions();
+    status.value = `Selected ${selected.bustype} ${selected.channel}`;
+  } catch (error) {
+    status.value = `CAN device select failed: ${error.message}`;
+    selectedDeviceKey.value = makeDeviceKey(connection.value.bustype, connection.value.channel);
+  }
+}
+
 async function handleConnect() {
   try {
     connection.value = await connectBus();
     loadedHeartbeatNodes.clear();
+    loadedNmtNodes.clear();
     loadedSyncNodes.clear();
     loadedTpdoNodes.clear();
     await Promise.all([loadInitial(), refreshConfigs(nodes.value)]);
@@ -899,6 +1056,7 @@ async function handleDisconnect() {
   try {
     connection.value = await disconnectBus();
     loadedHeartbeatNodes.clear();
+    loadedNmtNodes.clear();
     loadedSyncNodes.clear();
     loadedTpdoNodes.clear();
   } catch (error) {
@@ -936,6 +1094,7 @@ async function handleRemoveNode(nodeId) {
     delete writeState[nodeId];
     delete domainState[nodeId];
     delete heartbeatState[nodeId];
+    delete nmtState[nodeId];
     delete syncState[nodeId];
     delete tpdoState[nodeId];
     delete nodeUiState[nodeId];
@@ -984,10 +1143,12 @@ async function loadDomain(nodeId) {
 async function submitDomain(nodeId) {
   try {
     const form = domainState[nodeId];
+    const compactHex = form.hexData.replace(/\s+/g, "");
+    const normalizedHex = compactHex.length % 2 === 0 ? compactHex : `0${compactHex}`;
     const result = await writeDomain(nodeId, {
       index: parseIndex(form.index),
       subindex: Number(form.subindex),
-      hexData: form.hexData.replace(/\s+/g, ""),
+      hexData: normalizedHex,
     });
     domainState[nodeId].hexData = result.hex_data;
     domainState[nodeId].length = result.length;
@@ -1014,17 +1175,44 @@ async function loadHeartbeat(nodeId) {
   }
 }
 
+async function loadNmt(nodeId) {
+  try {
+    applyNmtConfig(await fetchNmtConfig(nodeId));
+    loadedNmtNodes.add(nodeId);
+  } catch (error) {
+    status.value = `NMT read failed: ${error.message}`;
+  }
+}
+
 async function submitHeartbeat(nodeId) {
   try {
     const form = heartbeatState[nodeId];
+    const producerTimeMs = parseNumericValue(form.producerTimeMs);
+    if (!Number.isInteger(producerTimeMs) || producerTimeMs < 0 || producerTimeMs >= 1000) {
+      throw new Error("Heartbeat producer time must be 0-999 ms");
+    }
     applyHeartbeatConfig(
       await writeHeartbeatConfig(nodeId, {
-        producer_time_ms: parseNumericValue(form.producerTimeMs),
+        producer_time_ms: producerTimeMs,
       }),
     );
     loadedHeartbeatNodes.add(nodeId);
   } catch (error) {
     status.value = `Heartbeat apply failed: ${error.message}`;
+  }
+}
+
+async function submitNmt(nodeId) {
+  try {
+    const form = nmtState[nodeId];
+    applyNmtConfig(
+      await writeNmtConfig(nodeId, {
+        state: form.targetState,
+      }),
+    );
+    loadedNmtNodes.add(nodeId);
+  } catch (error) {
+    status.value = `NMT apply failed: ${error.message}`;
   }
 }
 
@@ -1065,9 +1253,18 @@ async function loadTpdo1(nodeId) {
   }
 }
 
-async function submitTpdo1(nodeId) {
+async function toggleTpdo1(nodeId) {
+  const previousEnabled = !tpdoState[nodeId].enabled;
   try {
-    const form = tpdoState[nodeId];
+    await submitTpdo1(nodeId);
+  } catch (error) {
+    tpdoState[nodeId].enabled = previousEnabled;
+  }
+}
+
+async function submitTpdo1(nodeId) {
+  const form = tpdoState[nodeId];
+  try {
     applyTpdoConfig(
       await writeTpdo1Config(nodeId, {
         enabled: Boolean(form.enabled),
@@ -1081,12 +1278,15 @@ async function submitTpdo1(nodeId) {
     loadedTpdoNodes.add(nodeId);
   } catch (error) {
     status.value = `TPDO1 apply failed: ${error.message}`;
+    throw error;
   }
 }
 
 onMounted(async () => {
+  applyInitialViewState();
   try {
     await loadInitial();
+    await scrollLogsToBottom();
   } catch (error) {
     status.value = `REST failed: ${error.message}`;
   }
@@ -1121,6 +1321,13 @@ watch([activeTab, chartNodeId], async ([tab]) => {
   await queueChartRender();
 });
 
+watch(
+  () => pythonLogs.value.length,
+  async () => {
+    await scrollLogsToBottom();
+  },
+);
+
 onBeforeUnmount(() => {
   if (socket) {
     socket.close();
@@ -1146,10 +1353,33 @@ onBeforeUnmount(() => {
       </p>
       <div class="status">{{ status }}</div>
       <div class="connection-bar">
-        <span>
-          {{ connection.connected ? "Connected" : "Disconnected" }}
-          {{ connection.bustype }} {{ connection.channel }} @ {{ connection.bitrate }}
-        </span>
+        <div class="connection-info">
+          <span>
+            {{ connection.connected ? "Connected" : "Disconnected" }}
+            {{ connection.bustype }} {{ connection.channel }} @ {{ connection.bitrate }}
+          </span>
+          <label class="channel-picker">
+            <span>CAN Device</span>
+            <select v-model="selectedDeviceKey" :disabled="connection.connected" @change="handleDeviceChange">
+              <optgroup v-for="group in groupedCanDevices" :key="group.label" :label="group.label">
+                <option
+                  v-for="port in group.items"
+                  :key="`${port.bustype}-${port.channel}`"
+                  :value="`${port.bustype}|${port.channel}`"
+                  :disabled="!port.supported"
+                >
+                  {{ port.label }}{{ port.description && port.description !== port.label ? ` - ${port.description}` : "" }}{{ !port.supported ? " (unsupported)" : "" }}
+                </option>
+              </optgroup>
+              <option
+                v-if="selectedDeviceKey && !canDevices.some((port) => `${port.bustype}|${port.channel}` === selectedDeviceKey)"
+                :value="selectedDeviceKey"
+              >
+                {{ selectedDeviceKey }}
+              </option>
+            </select>
+          </label>
+        </div>
         <div class="connection-actions">
           <button v-if="!connection.connected" type="button" @click="handleConnect">Connect</button>
           <button v-else type="button" class="secondary" @click="handleDisconnect">Disconnect</button>
@@ -1158,30 +1388,31 @@ onBeforeUnmount(() => {
     </section>
 
     <section class="tabs">
+      <div class="tabs-indicator" :style="{ transform: `translateX(${activeTabIndex * 100}%)` }"></div>
       <button
         type="button"
         :class="['tab', { active: activeTab === 'overview' }]"
-        @click="activeTab = 'overview'"
+        @click="setActiveTab('overview')"
       >
         Overview
       </button>
       <button
         type="button"
         :class="['tab', { active: activeTab === 'nodes' }]"
-        @click="activeTab = 'nodes'"
+        @click="setActiveTab('nodes')"
       >
         Node Config
       </button>
       <button
         type="button"
         :class="['tab', { active: activeTab === 'monitor' }]"
-        @click="activeTab = 'monitor'"
+        @click="setActiveTab('monitor')"
       >
         Monitor
       </button>
     </section>
 
-    <Transition name="tab-fade" mode="out-in">
+    <Transition :name="tabTransitionName" mode="out-in">
       <section v-if="activeTab === 'overview'" key="overview" class="overview-grid">
         <article class="overview-card">
           <h2>Bus Status</h2>
@@ -1244,9 +1475,12 @@ onBeforeUnmount(() => {
       >
         <button type="button" class="card-toggle" @click="toggleNodeExpanded(node.node_id)">
           <div class="card-head">
-            <div>
-              <h2>Node {{ node.node_id }}</h2>
-              <p class="muted">source: {{ node.source }}</p>
+            <div class="card-title-block">
+              <h2 class="node-title">
+                <span class="node-title-label">Node</span>
+                <span :class="['node-title-id', { online: node.connected, offline: !node.connected }]">{{ node.node_id }}</span>
+              </h2>
+              <p v-if="node.status_note" class="node-status-note">{{ node.status_note }}</p>
             </div>
             <div class="card-toggle-right">
               <button
@@ -1266,31 +1500,32 @@ onBeforeUnmount(() => {
 
         <Transition name="section-collapse">
         <div v-if="nodeUiState[node.node_id].expanded">
-        <dl class="metrics">
-          <div class="metric-row">
-            <button type="button" class="metric-trigger" @click="openMetricChart(node.node_id, 'testvar1')">
-            <div class="metric-body">
-            <dt>0x2000 testvar1_uint32</dt>
-            <dd>{{ formatValue(node.testvar1_uint32) }}</dd>
+          <dl class="metrics metrics-carded">
+            <div class="metric-row metric-card metric-card-testvar1">
+              <button type="button" class="metric-trigger" @click="openMetricChart(node.node_id, 'testvar1')">
+              <div class="metric-body">
+             <dt>0x2000 testvar1 uint32</dt>
+             <dd>{{ formatValue(node.testvar1_uint32) }}</dd>
+              </div>
+              </button>
             </div>
-            </button>
-          </div>
-          <div class="metric-row">
-            <button type="button" class="metric-trigger" @click="openMetricChart(node.node_id, 'testvar2')">
-            <div class="metric-body">
-            <dt>0x2001 testvar2_uint16</dt>
-            <dd>{{ formatValue(node.testvar2_uint16) }}</dd>
+            <div class="metric-row metric-card metric-card-testvar2">
+              <button type="button" class="metric-trigger" @click="openMetricChart(node.node_id, 'testvar2')">
+              <div class="metric-body">
+             <dt>0x2001 testvar2 uint16</dt>
+             <dd>{{ formatValue(node.testvar2_uint16) }}</dd>
+              </div>
+              </button>
             </div>
-            </button>
-          </div>
-          <div>
-            <dt>Heartbeat</dt>
-            <dd>{{ node.heartbeat_ms ?? "-" }} ms</dd>
-          </div>
-        </dl>
+            <div class="metric-card metric-card-heartbeat">
+             <dt>Heartbeat</dt>
+             <dd>{{ node.heartbeat_ms ?? "-" }} ms</dd>
+            </div>
+          </dl>
 
         <div class="node-pane-tabs">
           <button type="button" :class="['node-pane-tab', { active: nodeUiState[node.node_id].pane === 'heartbeat' }]" @click="setNodePane(node.node_id, 'heartbeat')">HB</button>
+          <button type="button" :class="['node-pane-tab', { active: nodeUiState[node.node_id].pane === 'nmt' }]" @click="setNodePane(node.node_id, 'nmt')">NMT</button>
           <button type="button" :class="['node-pane-tab', { active: nodeUiState[node.node_id].pane === 'sync' }]" @click="setNodePane(node.node_id, 'sync')">SYNC</button>
           <button type="button" :class="['node-pane-tab', { active: nodeUiState[node.node_id].pane === 'tpdo' }]" @click="setNodePane(node.node_id, 'tpdo')">TPDO1</button>
           <button type="button" :class="['node-pane-tab', { active: nodeUiState[node.node_id].pane === 'sdo' }]" @click="setNodePane(node.node_id, 'sdo')">SDO</button>
@@ -1322,6 +1557,39 @@ onBeforeUnmount(() => {
           <div class="editor-actions panel-actions">
             <button type="button" class="secondary" @click="loadHeartbeat(node.node_id)">Read HB</button>
             <button type="button" @click="submitHeartbeat(node.node_id)">Apply HB</button>
+          </div>
+          <p class="panel-hint">Heartbeat producer time must be 0-999 ms and is shown in decimal.</p>
+        </section>
+
+        <section
+          v-else-if="nodeUiState[node.node_id].pane === 'nmt'"
+          class="panel-block panel-nmt"
+        >
+          <div class="panel-head">
+            <h3>NMT</h3>
+            <div class="section-toggle-right">
+              <span class="panel-badge">{{ nmtState[node.node_id]?.currentState || node.nmt_state }}</span>
+            </div>
+          </div>
+          <div class="editor-grid">
+            <div>
+              <label :for="`node-${node.node_id}-nmt-target`">Target State</label>
+              <select
+                :id="`node-${node.node_id}-nmt-target`"
+                v-model="nmtState[node.node_id].targetState"
+              >
+                <option value="OPERATIONAL">OPERATIONAL</option>
+                <option value="PRE-OPERATIONAL">PRE-OP</option>
+                <option value="STOPPED">STOPPED</option>
+                <option value="RESET">RESET</option>
+                <option value="RESET COMMUNICATION">RESET COMM</option>
+              </select>
+            </div>
+            <div class="heartbeat-placeholder"></div>
+          </div>
+          <p class="panel-hint">Apply sends the selected NMT command to this node.</p>
+          <div class="editor-actions panel-actions">
+            <button type="button" @click="submitNmt(node.node_id)">Apply NMT</button>
           </div>
         </section>
 
@@ -1390,7 +1658,11 @@ onBeforeUnmount(() => {
           </div>
           <div class="toggle-row">
             <label class="checkbox">
-              <input v-model="tpdoState[node.node_id].enabled" type="checkbox" />
+              <input
+                v-model="tpdoState[node.node_id].enabled"
+                type="checkbox"
+                @change="toggleTpdo1(node.node_id)"
+              />
               <span>Enable TPDO1</span>
             </label>
           </div>
@@ -1402,6 +1674,7 @@ onBeforeUnmount(() => {
                 v-model="tpdoState[node.node_id].cobId"
                 type="text"
                 inputmode="text"
+                :disabled="tpdoState[node.node_id].enabled"
               />
             </div>
             <div>
@@ -1411,6 +1684,7 @@ onBeforeUnmount(() => {
                 v-model="tpdoState[node.node_id].transmissionType"
                 type="text"
                 inputmode="text"
+                :disabled="tpdoState[node.node_id].enabled"
               />
             </div>
           </div>
@@ -1422,6 +1696,7 @@ onBeforeUnmount(() => {
                 v-model="tpdoState[node.node_id].inhibitTime"
                 type="text"
                 inputmode="text"
+                :disabled="tpdoState[node.node_id].enabled"
               />
             </div>
             <div>
@@ -1431,6 +1706,7 @@ onBeforeUnmount(() => {
                 v-model="tpdoState[node.node_id].eventTimer"
                 type="text"
                 inputmode="text"
+                :disabled="tpdoState[node.node_id].enabled"
               />
             </div>
             <div>
@@ -1440,13 +1716,13 @@ onBeforeUnmount(() => {
                 v-model="tpdoState[node.node_id].syncStartValue"
                 type="text"
                 inputmode="text"
+                :disabled="tpdoState[node.node_id].enabled"
               />
             </div>
           </div>
-          <div class="editor-actions panel-actions">
-            <button type="button" class="secondary" @click="loadTpdo1(node.node_id)">Read TPDO1</button>
-            <button type="button" @click="submitTpdo1(node.node_id)">Apply TPDO1</button>
-          </div>
+          <p v-if="tpdoState[node.node_id]?.enabled" class="panel-hint">
+            Disable TPDO1 first to edit its communication parameters.
+          </p>
         </section>
         <form
           v-else-if="nodeUiState[node.node_id].pane === 'sdo'"
@@ -1634,7 +1910,7 @@ onBeforeUnmount(() => {
           <div v-if="monitoredNodes.length > 0" class="chart-stack">
             <div v-if="selectedMonitorMetrics.includes('testvar1')" class="chart-panel">
               <div class="chart-panel-head">
-                <span class="chart-panel-label">0x2000 testvar1_uint32</span>
+                <span class="chart-panel-label">0x2000 testvar1 uint32</span>
                 <button type="button" class="ghost-button monitor-zoom-reset-button" @click="resetChartsZoom('primary')">
                   Zoom Reset
                 </button>
@@ -1643,7 +1919,7 @@ onBeforeUnmount(() => {
             </div>
             <div v-if="selectedMonitorMetrics.includes('testvar2')" class="chart-panel">
               <div class="chart-panel-head">
-                <span class="chart-panel-label">0x2001 testvar2_uint16</span>
+                <span class="chart-panel-label">0x2001 testvar2 uint16</span>
                 <button type="button" class="ghost-button monitor-zoom-reset-button" @click="resetChartsZoom('secondary')">
                   Zoom Reset
                 </button>
@@ -1697,7 +1973,7 @@ onBeforeUnmount(() => {
           <button type="button" class="secondary small-button" @click="handleClearLogs">Clear</button>
         </div>
       </div>
-      <div class="log-list">
+      <div ref="logListHost" class="log-list">
         <p v-if="pythonLogs.length === 0" class="muted">No Python output yet.</p>
         <div
           v-for="entry in pythonLogs"

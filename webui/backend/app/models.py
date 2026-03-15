@@ -7,6 +7,7 @@ class NodeSnapshot(BaseModel):
     node_id: int
     connected: bool
     nmt_state: str
+    status_note: str | None = None
     testvar1_uint32: int
     testvar2_uint16: int
     heartbeat_ms: int | None = None
@@ -56,6 +57,25 @@ class ConnectionStatus(BaseModel):
     bitrate: int
 
 
+class CanDeviceInfo(BaseModel):
+    label: str
+    category: str = "Native CAN"
+    supported: bool = True
+    bustype: str
+    channel: str
+    description: str | None = None
+    hwid: str | None = None
+    manufacturer: str | None = None
+    vid: int | None = None
+    pid: int | None = None
+    serial_number: str | None = None
+
+
+class ConnectionDeviceRequest(BaseModel):
+    bustype: str
+    channel: str
+
+
 class NodeSyncConfig(BaseModel):
     node_id: int
     enabled: bool
@@ -95,4 +115,13 @@ class NodeHeartbeatConfig(BaseModel):
 
 
 class NodeHeartbeatWriteRequest(BaseModel):
-    producer_time_ms: int = 0
+    producer_time_ms: int
+
+
+class NodeNmtConfig(BaseModel):
+    node_id: int
+    state: str
+
+
+class NodeNmtWriteRequest(BaseModel):
+    state: str

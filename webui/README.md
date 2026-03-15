@@ -38,7 +38,7 @@ Run in development:
 
 ```bash
 cd webui/backend
-uvicorn app.main:app --reload --host 127.0.0.1 --port 80
+uvicorn app.main:app --reload --host 0.0.0.0 --port 80
 ```
 
 Single-service run after building the frontend:
@@ -49,10 +49,10 @@ npm install
 npm run build
 
 cd ../backend
-uvicorn app.main:app --host 127.0.0.1 --port 80
+uvicorn app.main:app --host 0.0.0.0 --port 80
 ```
 
-Then open `http://127.0.0.1:80`.
+Then open `http://127.0.0.1:80` on the PC or `http://<your-lan-ip>:80` from another device on the same network.
 
 Or use the helper script from the repository root:
 
@@ -85,7 +85,21 @@ npm install
 npm run dev
 ```
 
-Default backend base URL is `http://127.0.0.1:80`.
+Default backend base URL is the same origin as the page itself. In single-service mode this means the browser automatically talks to the same host you opened, for example `http://192.168.1.148:80`.
+
+## LAN Access
+
+If you want to open the WebUI from a phone or another PC on the same network:
+
+1. Start the backend with `--host 0.0.0.0`
+2. Make sure Windows firewall allows inbound access to port `80`
+3. Open `http://<your-lan-ip>:80`
+
+Example:
+
+```text
+http://192.168.1.148:80
+```
 
 This mode is for frontend development only. For normal use in this repository, build the frontend and let FastAPI serve `frontend/dist`.
 
@@ -106,6 +120,9 @@ The current web UI has three main areas:
   - Multi-node selection
   - Variable selection for `0x2000 testvar1_uint32` and `0x2001 testvar2_uint16`
   - `Reset` and `Pause/Resume`
+- `CAN Device` selection
+  - Lists `slcan` serial adapters from Windows `COM` ports, including USB descriptor metadata when available
+  - Also lists native `python-can` detectable adapters such as `pcan`, `vector`, `kvaser`, `ixxat`, `nixnet`, `neovi`, `systec`, and `usb2can`
 
 ## UI Map
 

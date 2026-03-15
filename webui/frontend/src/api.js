@@ -1,4 +1,4 @@
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:80";
+const API_BASE = import.meta.env.VITE_API_BASE || window.location.origin;
 
 async function requestJson(url, options) {
   const response = await fetch(url, options);
@@ -54,6 +54,20 @@ export async function fetchConnection() {
   return requestJson(`${API_BASE}/api/connection`);
 }
 
+export async function fetchCanDevices() {
+  return requestJson(`${API_BASE}/api/connection/devices`);
+}
+
+export async function updateConnectionDevice({ bustype, channel }) {
+  return requestJson(`${API_BASE}/api/connection/device`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ bustype, channel }),
+  });
+}
+
 export async function connectBus() {
   return requestJson(`${API_BASE}/api/connection/connect`, { method: "POST" });
 }
@@ -84,6 +98,20 @@ export async function fetchHeartbeatConfig(nodeId) {
 
 export async function writeHeartbeatConfig(nodeId, payload) {
   return requestJson(`${API_BASE}/api/nodes/${nodeId}/heartbeat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function fetchNmtConfig(nodeId) {
+  return requestJson(`${API_BASE}/api/nodes/${nodeId}/nmt`);
+}
+
+export async function writeNmtConfig(nodeId, payload) {
+  return requestJson(`${API_BASE}/api/nodes/${nodeId}/nmt`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
