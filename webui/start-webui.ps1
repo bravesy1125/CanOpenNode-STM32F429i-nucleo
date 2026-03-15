@@ -12,6 +12,42 @@ $backendDir = Join-Path $PSScriptRoot "backend"
 $nodeDir = "C:\Program Files\nodejs"
 $npmCmd = Join-Path $nodeDir "npm.cmd"
 
+function Stop-PortListeners {
+    param(
+        [int]$TargetPort
+    )
+
+    $listenLines = cmd /c "netstat -ano | findstr :$TargetPort | findstr LISTENING"
+    if (-not $listenLines) {
+        return
+    }
+
+    $pids = @()
+    foreach ($line in $listenLines) {
+        $parts = ($line -split "\s+") | Where-Object { $_ }
+        if ($parts.Count -gt 0) {
+            $pidText = $parts[-1]
+            if ($pidText -match '^\d+$') {
+                $pids += [int]$pidText
+            }
+        }
+    }
+
+    $pids = $pids | Sort-Object -Unique
+    foreach ($listenerPid in $pids) {
+        try {
+            $process = Get-Process -Id $listenerPid -ErrorAction Stop
+            Write-Host "Stopping process on port ${TargetPort}: PID=$listenerPid Name=$($process.ProcessName)"
+            Stop-Process -Id $listenerPid -Force -ErrorAction Stop
+        }
+        catch {
+            Write-Warning "Failed to stop PID $listenerPid on port ${TargetPort}: $($_.Exception.Message)"
+        }
+    }
+
+    Start-Sleep -Milliseconds 800
+}
+
 if (-not (Test-Path $npmCmd)) {
     throw "Node.js not found at $npmCmd"
 }
@@ -33,6 +69,8 @@ if ($Mock) {
 else {
     Remove-Item Env:CANOPEN_MOCK -ErrorAction SilentlyContinue
 }
+
+Stop-PortListeners -TargetPort $Port
 
 Write-Host "Starting uvicorn on http://$BindHost`:$Port ..."
 Push-Location $backendDir

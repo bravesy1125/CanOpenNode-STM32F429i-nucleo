@@ -1475,13 +1475,36 @@ onBeforeUnmount(() => {
       >
         <button type="button" class="card-toggle" @click="toggleNodeExpanded(node.node_id)">
           <div class="card-head">
-            <div class="card-title-block">
-              <h2 class="node-title">
-                <span class="node-title-label">Node</span>
-                <span :class="['node-title-id', { online: node.connected, offline: !node.connected }]">{{ node.node_id }}</span>
-              </h2>
-              <p v-if="node.status_note" class="node-status-note">{{ node.status_note }}</p>
-            </div>
+              <div class="card-title-block">
+                <h2 class="node-title">
+                  <span class="node-title-label">Node</span>
+                  <span :class="['node-title-id', { online: node.connected, offline: !node.connected }]">
+                   <span class="node-title-id-core"></span>
+                   <span class="node-title-id-text">{{ node.node_id }}</span>
+                   <span class="node-particle node-particle-1"></span>
+                   <span class="node-particle node-particle-2"></span>
+                   <span class="node-particle node-particle-3"></span>
+                   <span class="node-particle node-particle-4"></span>
+                   <span class="node-particle node-particle-5"></span>
+                   <span class="node-particle node-particle-6"></span>
+                   <span class="node-particle node-particle-7"></span>
+                   <span class="node-particle node-particle-8"></span>
+                   <span class="node-particle node-particle-9"></span>
+                   <span class="node-particle node-particle-10"></span>
+                   <span class="node-particle node-particle-11"></span>
+                   <span class="node-particle node-particle-12"></span>
+                   <span class="node-particle node-particle-13"></span>
+                   <span class="node-particle node-particle-14"></span>
+                   <span class="node-particle node-particle-15"></span>
+                   <span class="node-particle node-particle-16"></span>
+                   <span class="node-particle node-particle-17"></span>
+                   <span class="node-particle node-particle-18"></span>
+                   <span class="node-particle node-particle-19"></span>
+                   <span class="node-particle node-particle-20"></span>
+                  </span>
+                </h2>
+                <p v-if="node.status_note" class="node-status-note">{{ node.status_note }}</p>
+              </div>
             <div class="card-toggle-right">
               <button
                 type="button"
