@@ -219,6 +219,166 @@ function formatNumericInput(value) {
   return `0x${numeric.toString(16)}`;
 }
 
+function formatHexPreview(hexData) {
+  const compact = String(hexData || "").replace(/\s+/g, "").toLowerCase();
+  const evenHex = compact.length % 2 === 0 ? compact : `0${compact}`;
+  const parts = evenHex.match(/.{1,2}/g) ?? [];
+  return parts.join(" ");
+}
+
+function formatBinPreview(hexData) {
+  const compact = String(hexData || "").replace(/\s+/g, "");
+  const evenHex = compact.length % 2 === 0 ? compact : `0${compact}`;
+  const parts = [];
+  for (let index = 0; index < evenHex.length; index += 2) {
+    const byteText = evenHex.slice(index, index + 2);
+    if (byteText.length === 2) {
+      parts.push(Number.parseInt(byteText, 16).toString(2).padStart(8, "0"));
+    }
+  }
+  return parts.join(" ");
+}
+
+function formatAsciiPreview(hexData) {
+  const compact = String(hexData || "").replace(/\s+/g, "");
+  const evenHex = compact.length % 2 === 0 ? compact : `0${compact}`;
+  const bytes = [];
+  for (let index = 0; index < evenHex.length; index += 2) {
+    const byteText = evenHex.slice(index, index + 2);
+    if (byteText.length === 2) {
+      bytes.push(Number.parseInt(byteText, 16));
+    }
+  }
+  if (!bytes.length) {
+    return "";
+  }
+
+  const decoded = new TextDecoder("utf-8", { fatal: false }).decode(new Uint8Array(bytes));
+  return Array.from(decoded, (char) => {
+    const code = char.charCodeAt(0);
+    if (char === "\r" || char === "\n" || char === "\t") {
+      return char;
+    }
+    return code >= 32 ? char : ".";
+  }).join("");
+}
+
+function normalizeHexText(value) {
+  const compact = String(value || "").replace(/[^0-9a-fA-F]/g, "").toLowerCase();
+  if (!compact) {
+    return "";
+  }
+  return compact.length % 2 === 0 ? compact : `0${compact}`;
+}
+
+function normalizeBinaryText(value) {
+  const compact = String(value || "").replace(/[^01]/g, "");
+  if (!compact) {
+    return "";
+  }
+  const remainder = compact.length % 8;
+  const padded = remainder === 0 ? compact : `${"0".repeat(8 - remainder)}${compact}`;
+  const bytes = padded.match(/.{1,8}/g) ?? [];
+  return bytes.map((bits) => Number.parseInt(bits, 2).toString(16).padStart(2, "0")).join("");
+}
+
+function normalizeAsciiText(value) {
+  const text = String(value || "");
+  if (!text) {
+    return "";
+  }
+  return Array.from(text, (char) => char.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+}
+
+function getDomainFilePreviewText(nodeId) {
+  const state = domainState[nodeId];
+  if (!state?.fileHexData) {
+    return "";
+  }
+  if (state.previewMode === "bin") {
+    return formatBinPreview(state.fileHexData);
+  }
+  if (state.previewMode === "ascii") {
+    return formatAsciiPreview(state.fileHexData);
+  }
+  return formatHexPreview(state.fileHexData);
+}
+
+function getDomainPreviewText(nodeId) {
+  const state = domainState[nodeId];
+  if (!state?.hexData) {
+    return "";
+  }
+  if (state.previewMode === "bin") {
+    return formatBinPreview(state.hexData);
+  }
+  if (state.previewMode === "ascii") {
+    return formatAsciiPreview(state.hexData);
+  }
+  return formatHexPreview(state.hexData);
+}
+
+function getDomainPreviewMeta(nodeId) {
+  const state = domainState[nodeId];
+  if (!state?.fileSize) {
+    return "";
+  }
+  return `Showing ${state.fileSize} bytes`;
+}
+
+function getDomainPayloadText(nodeId) {
+  const state = domainState[nodeId];
+  if (!state?.hexData) {
+    return "";
+  }
+  if (state.payloadMode === "bin") {
+    return formatBinPreview(state.hexData);
+  }
+  if (state.payloadMode === "ascii") {
+    return formatAsciiPreview(state.hexData);
+  }
+  return formatHexPreview(state.hexData);
+}
+
+function setDomainPayloadText(nodeId, rawValue) {
+  const state = domainState[nodeId];
+  if (!state) {
+    return;
+  }
+
+  if (state.payloadMode === "bin") {
+    state.hexData = normalizeBinaryText(rawValue);
+  } else if (state.payloadMode === "ascii") {
+    state.hexData = normalizeAsciiText(rawValue);
+  } else {
+    state.hexData = normalizeHexText(rawValue);
+  }
+  state.length = state.hexData.length / 2;
+}
+
+function triggerDomainFilePicker(nodeId) {
+  const input = document.getElementById(`node-${nodeId}-domain-file`);
+  input?.click();
+}
+
+async function handleDomainFilePicked(nodeId, event) {
+  const input = event.target;
+  const file = input?.files?.[0];
+  if (!file) {
+    return;
+  }
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  const hexData = Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("");
+  domainState[nodeId].hexData = hexData;
+  domainState[nodeId].length = bytes.length;
+  domainState[nodeId].fileHexData = hexData;
+  domainState[nodeId].fileName = file.name;
+  domainState[nodeId].fileSize = file.size;
+  domainState[nodeId].previewMode = "hex";
+  domainState[nodeId].payloadMode = "hex";
+  input.value = "";
+}
+
 function ensureHistory(nodeId) {
   if (!(nodeId in chartHistory)) {
     chartHistory[nodeId] = {
@@ -780,6 +940,13 @@ function syncNodeForms(items) {
         subindex: "0",
         hexData: "",
         length: 0,
+        fileHexData: "",
+        fileName: "",
+        fileSize: 0,
+        previewMode: "hex",
+        payloadMode: "hex",
+        lastActionMessage: "",
+        lastActionLevel: "info",
       };
     }
     if (!(node.node_id in heartbeatState)) {
@@ -798,14 +965,14 @@ function syncNodeForms(items) {
     if (!(node.node_id in syncState)) {
       syncState[node.node_id] = {
         enabled: false,
-        cobId: "",
+        cobId: getStrictSyncCobIdText(),
         periodUs: "",
       };
     }
     if (!(node.node_id in tpdoState)) {
       tpdoState[node.node_id] = {
         enabled: false,
-        cobId: "",
+        cobId: getStrictTpdo1CobIdText(node.node_id),
         transmissionType: "",
         inhibitTime: "",
         eventTimer: "",
@@ -835,10 +1002,34 @@ function parseIndex(value) {
   return Number(value);
 }
 
+function getStrictSyncCobId() {
+  return 0x80;
+}
+
+function getStrictSyncCobIdText() {
+  return `0x${getStrictSyncCobId().toString(16)}`;
+}
+
+function getStrictTpdo1CobId(nodeId) {
+  return 0x180 + Number(nodeId);
+}
+
+function getStrictTpdo1CobIdText(nodeId) {
+  return `0x${getStrictTpdo1CobId(nodeId).toString(16)}`;
+}
+
+function getStrictHeartbeatCobId(nodeId) {
+  return 0x700 + Number(nodeId);
+}
+
+function getStrictHeartbeatCobIdText(nodeId) {
+  return `0x${getStrictHeartbeatCobId(nodeId).toString(16)}`;
+}
+
 function applySyncConfig(config) {
   syncState[config.node_id] = {
     enabled: config.enabled,
-    cobId: `0x${config.cob_id.toString(16)}`,
+    cobId: getStrictSyncCobIdText(),
     periodUs: String(config.period_us),
   };
 }
@@ -860,7 +1051,7 @@ function applyNmtConfig(config) {
 function applyTpdoConfig(config) {
   tpdoState[config.node_id] = {
     enabled: config.enabled,
-    cobId: `0x${config.cob_id.toString(16)}`,
+    cobId: getStrictTpdo1CobIdText(config.node_id),
     transmissionType: formatNumericInput(config.transmission_type),
     inhibitTime: formatNumericInput(config.inhibit_time),
     eventTimer: formatNumericInput(config.event_timer),
@@ -1135,7 +1326,11 @@ async function loadDomain(nodeId) {
     });
     domainState[nodeId].hexData = result.hex_data;
     domainState[nodeId].length = result.length;
+    domainState[nodeId].lastActionLevel = "info";
+    domainState[nodeId].lastActionMessage = `Read Domain OK · ${result.length} bytes`;
   } catch (error) {
+    domainState[nodeId].lastActionLevel = "error";
+    domainState[nodeId].lastActionMessage = `Read Domain failed · ${error.message}`;
     status.value = `DOMAIN read failed: ${error.message}`;
   }
 }
@@ -1143,8 +1338,7 @@ async function loadDomain(nodeId) {
 async function submitDomain(nodeId) {
   try {
     const form = domainState[nodeId];
-    const compactHex = form.hexData.replace(/\s+/g, "");
-    const normalizedHex = compactHex.length % 2 === 0 ? compactHex : `0${compactHex}`;
+    const normalizedHex = normalizeHexText(form.hexData);
     const result = await writeDomain(nodeId, {
       index: parseIndex(form.index),
       subindex: Number(form.subindex),
@@ -1152,7 +1346,11 @@ async function submitDomain(nodeId) {
     });
     domainState[nodeId].hexData = result.hex_data;
     domainState[nodeId].length = result.length;
+    domainState[nodeId].lastActionLevel = "info";
+    domainState[nodeId].lastActionMessage = `Write Domain OK · ${result.length} bytes`;
   } catch (error) {
+    domainState[nodeId].lastActionLevel = "error";
+    domainState[nodeId].lastActionMessage = `Write Domain failed · ${error.message}`;
     status.value = `DOMAIN write failed: ${error.message}`;
   }
 }
@@ -1232,7 +1430,7 @@ async function submitSync(nodeId) {
     const form = syncState[nodeId];
     await writeSyncConfig(nodeId, {
       enabled: Boolean(form.enabled),
-      cob_id: parseIndex(form.cobId),
+      cob_id: getStrictSyncCobId(),
       period_us: parseNumericValue(form.periodUs),
     });
     loadedSyncNodes.clear();
@@ -1268,11 +1466,11 @@ async function submitTpdo1(nodeId) {
     applyTpdoConfig(
       await writeTpdo1Config(nodeId, {
         enabled: Boolean(form.enabled),
-        cob_id: parseIndex(form.cobId),
+        cob_id: getStrictTpdo1CobId(nodeId),
         transmission_type: parseNumericValue(form.transmissionType),
         inhibit_time: parseNumericValue(form.inhibitTime),
         event_timer: parseNumericValue(form.eventTimer),
-        sync_start_value: parseNumericValue(form.syncStartValue),
+        sync_start_value: 0,
       }),
     );
     loadedTpdoNodes.add(nodeId);
@@ -1567,6 +1765,16 @@ onBeforeUnmount(() => {
           </div>
           <div class="editor-grid">
             <div>
+              <label :for="`node-${node.node_id}-heartbeat-cob-id`">COB-ID (fixed)</label>
+              <input
+                :id="`node-${node.node_id}-heartbeat-cob-id`"
+                :value="getStrictHeartbeatCobIdText(node.node_id)"
+                type="text"
+                inputmode="text"
+                disabled
+              />
+            </div>
+            <div>
               <label :for="`node-${node.node_id}-heartbeat-ms`">Producer Time (ms)</label>
               <input
                 :id="`node-${node.node_id}-heartbeat-ms`"
@@ -1575,7 +1783,6 @@ onBeforeUnmount(() => {
                 inputmode="text"
               />
             </div>
-            <div class="heartbeat-placeholder"></div>
           </div>
           <div class="editor-actions panel-actions">
             <button type="button" class="secondary" @click="loadHeartbeat(node.node_id)">Read HB</button>
@@ -1639,15 +1846,13 @@ onBeforeUnmount(() => {
             </div>
             <div class="editor-grid">
               <div>
-                <label :for="`node-${node.node_id}-sync-cob-id`">SYNC COB-ID</label>
+                <label :for="`node-${node.node_id}-sync-cob-id`">SYNC COB-ID (fixed)</label>
                 <input
                   :id="`node-${node.node_id}-sync-cob-id`"
                   v-model="syncState[node.node_id].cobId"
                   type="text"
                   inputmode="text"
-                  :disabled="syncState[node.node_id].enabled"
-                  @blur="commitSyncDraft(node.node_id)"
-                  @keydown.enter.prevent="commitSyncDraft(node.node_id)"
+                  disabled
                 />
               </div>
               <div>
@@ -1691,13 +1896,13 @@ onBeforeUnmount(() => {
           </div>
           <div class="editor-grid">
             <div>
-              <label :for="`node-${node.node_id}-tpdo-cob-id`">COB-ID</label>
+              <label :for="`node-${node.node_id}-tpdo-cob-id`">COB-ID (fixed)</label>
               <input
                 :id="`node-${node.node_id}-tpdo-cob-id`"
                 v-model="tpdoState[node.node_id].cobId"
                 type="text"
                 inputmode="text"
-                :disabled="tpdoState[node.node_id].enabled"
+                disabled
               />
             </div>
             <div>
@@ -1727,16 +1932,6 @@ onBeforeUnmount(() => {
               <input
                 :id="`node-${node.node_id}-tpdo-event`"
                 v-model="tpdoState[node.node_id].eventTimer"
-                type="text"
-                inputmode="text"
-                :disabled="tpdoState[node.node_id].enabled"
-              />
-            </div>
-            <div>
-              <label :for="`node-${node.node_id}-tpdo-sync-start`">SYNC Start Value</label>
-              <input
-                :id="`node-${node.node_id}-tpdo-sync-start`"
-                v-model="tpdoState[node.node_id].syncStartValue"
                 type="text"
                 inputmode="text"
                 :disabled="tpdoState[node.node_id].enabled"
@@ -1820,11 +2015,86 @@ onBeforeUnmount(() => {
               />
             </div>
           </div>
-          <div>
-            <label :for="`node-${node.node_id}-domain-value`">Hex Payload</label>
+          <div class="domain-file-row">
+            <input
+              :id="`node-${node.node_id}-domain-file`"
+              class="domain-file-input"
+              type="file"
+              @change="handleDomainFilePicked(node.node_id, $event)"
+            />
+            <button type="button" class="secondary" @click="triggerDomainFilePicker(node.node_id)">Choose File</button>
+            <div class="domain-file-meta">
+              <strong>{{ domainState[node.node_id].fileName || "No file selected" }}</strong>
+              <span v-if="domainState[node.node_id].fileSize">{{ domainState[node.node_id].fileSize }} bytes</span>
+            </div>
+          </div>
+          <div class="domain-preview">
+            <div class="domain-preview-head">
+              <span class="domain-preview-label">File Preview</span>
+              <div class="domain-preview-tabs">
+                <button
+                  type="button"
+                  :class="['ghost-button', 'domain-preview-tab', { active: domainState[node.node_id].previewMode === 'hex' }]"
+                  @click="domainState[node.node_id].previewMode = 'hex'"
+                >
+                  HEX
+                </button>
+                <button
+                  type="button"
+                  :class="['ghost-button', 'domain-preview-tab', { active: domainState[node.node_id].previewMode === 'bin' }]"
+                  @click="domainState[node.node_id].previewMode = 'bin'"
+                >
+                  BIN
+                </button>
+                <button
+                  type="button"
+                  :class="['ghost-button', 'domain-preview-tab', { active: domainState[node.node_id].previewMode === 'ascii' }]"
+                  @click="domainState[node.node_id].previewMode = 'ascii'"
+                >
+                  ASCII
+                </button>
+              </div>
+            </div>
+            <pre class="domain-preview-body">{{ getDomainFilePreviewText(node.node_id) || "No file selected." }}</pre>
+            <p class="panel-hint">{{ getDomainPreviewMeta(node.node_id) }}</p>
+          </div>
+          <div class="domain-preview">
+            <div class="domain-preview-head">
+              <label :for="`node-${node.node_id}-domain-value`" class="domain-preview-label">
+                Payload
+                <span class="field-meta">{{ domainState[node.node_id].length }} bytes</span>
+              </label>
+              <div class="domain-preview-tabs">
+                <button
+                  type="button"
+                  :class="['ghost-button', 'domain-preview-tab', { active: domainState[node.node_id].payloadMode === 'hex' }]"
+                  @click="domainState[node.node_id].payloadMode = 'hex'"
+                >
+                  HEX
+                </button>
+                <button
+                  type="button"
+                  :class="['ghost-button', 'domain-preview-tab', { active: domainState[node.node_id].payloadMode === 'bin' }]"
+                  @click="domainState[node.node_id].payloadMode = 'bin'"
+                >
+                  BIN
+                </button>
+                <button
+                  type="button"
+                  :class="['ghost-button', 'domain-preview-tab', { active: domainState[node.node_id].payloadMode === 'ascii' }]"
+                  @click="domainState[node.node_id].payloadMode = 'ascii'"
+                >
+                  ASCII
+                </button>
+              </div>
+            </div>
+            <label :for="`node-${node.node_id}-domain-value`">
+              {{ domainState[node.node_id].payloadMode.toUpperCase() }} Payload
+            </label>
             <textarea
               :id="`node-${node.node_id}-domain-value`"
-              v-model="domainState[node.node_id].hexData"
+              :value="getDomainPayloadText(node.node_id)"
+              @input="setDomainPayloadText(node.node_id, $event.target.value)"
               rows="4"
             />
           </div>
@@ -1832,6 +2102,12 @@ onBeforeUnmount(() => {
             <button type="button" class="secondary" @click="loadDomain(node.node_id)">Read Domain</button>
             <button type="button" @click="submitDomain(node.node_id)">Write Domain</button>
           </div>
+          <p
+            v-if="domainState[node.node_id].lastActionMessage"
+            :class="domainState[node.node_id].lastActionLevel === 'error' ? 'error' : 'panel-hint'"
+          >
+            {{ domainState[node.node_id].lastActionMessage }}
+          </p>
         </div>
 
         <p v-if="node.last_error" class="error">{{ node.last_error }}</p>
@@ -1861,23 +2137,20 @@ onBeforeUnmount(() => {
                   </button>
                 </div>
               <div class="monitor-section monitor-section-selection">
-                <div class="monitor-section-head">
-                  <span class="monitor-section-label">Nodes Selection</span>
-                </div>
                 <div class="monitor-node-actions">
                   <button
                     type="button"
                     class="ghost-button monitor-select-all"
                     @click="selectAllMonitorNodes"
                   >
-                    Select All
+                    Select All Nodes
                   </button>
                   <button
                     type="button"
                     class="ghost-button monitor-clear-all"
                     @click="clearAllMonitorNodes"
                   >
-                    Clear All
+                    Clear All Nodes
                   </button>
                 </div>
               </div>

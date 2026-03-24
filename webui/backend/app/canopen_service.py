@@ -340,9 +340,29 @@ class CANopenService:
                 )
             )
 
+    @staticmethod
+    def _extract_abort_code(exc: BaseException) -> str:
+        code = getattr(exc, "code", None)
+        if isinstance(code, int):
+            return f"0x{code:08x}"
+        match = re.search(r"(0x[0-9a-fA-F]+)", str(exc))
+        return match.group(1).lower() if match else ""
+
     def append_exception(self, source: str, header: str, exc: BaseException) -> None:
         summary = f"{header}: {exc.__class__.__name__}: {exc}"
         self.append_log("ERROR", source, summary)
+        self.append_log("ERROR", source, f"detail: exception type = {exc.__class__.__name__}")
+
+        abort_code = self._extract_abort_code(exc)
+        if abort_code:
+            self.append_log("ERROR", source, f"detail: abort code = {abort_code}")
+            explanation = SDO_ABORT_EXPLANATIONS.get(abort_code.lower())
+            if explanation:
+                self.append_log("ERROR", source, f"detail: meaning = {explanation}")
+
+        cause = exc.__cause__ or exc.__context__
+        if cause:
+            self.append_log("ERROR", source, f"detail: cause = {cause.__class__.__name__}: {cause}")
 
     def _install_exception_hooks(self) -> None:
         if self._previous_sys_excepthook is None:
